@@ -15,7 +15,7 @@ On the highway between Islampur and Siliguri, many stretches are dark and empty 
 | Item | What it is | Status |
 |---|---|---|
 | `index.html` | Interactive night highway simulation | Working simulation |
-| `mountain.html` | Interactive hill-bend simulation | Working simulation |
+| `safe-crossing-mountain.html` | Interactive hill-bend simulation | Working simulation |
 | `firmware-draft/` | ESP32 code for the sensor nodes | Draft, [compiles / does not compile yet] |
 | `circuit/` | Tinkercad circuit design | Design only, not built |
 
