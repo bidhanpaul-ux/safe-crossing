@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Safe Crossing – night simulation</title>
+<style>
+:root{--bg:#f2f4f7;--fg:#161b26;--card:#fff;--line:#d5dae3;--acc:#d9480f;--mut:#566074;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1219;--fg:#e9ecf3;--card:#171d29;--line:#2b3446;--mut:#9aa5ba;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1219;--fg:#e9ecf3;--card:#171d29;--line:#2b3446;--mut:#9aa5ba;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 "Trebuchet MS",Verdana,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:16px}
+h1{font:700 1.5rem/1.2 "Trebuchet MS",Verdana,sans-serif;margin:0 0 4px}
+p.sub{margin:0 0 12px;color:var(--mut);max-width:70ch}
+canvas{width:100%;height:auto;display:block;border-radius:14px;border:1px solid var(--line);background:#0a1020}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
+button{font:inherit;font-weight:700;padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+label{color:var(--mut);display:flex;gap:8px;align-items:center}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.card b{display:block;font-size:1.15rem}.card span{color:var(--mut);font-size:.9rem}
+.bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#f59f00,#e03131)}
+small{color:var(--mut)}
+</style></head><body><main>
+<h1>Safe Crossing: night simulation</h1>
+<p class="sub">A software simulation of the proposed roadside lights. As the car comes closer, the lights on the highway and the side road glow one by one, and the villagers stop to wait. It is not a hardware test.</p>
+<canvas id="c" width="960" height="540" aria-label="Animated night road with a car, villagers and warning lights"></canvas>
+<div class="row">
+<button class="p" id="bCar">Send car</button><button id="bRe">Restart villagers</button>
+<label>Car speed <input id="sp" type="range" min="120" max="420" value="230"></label>
+<label><input id="snd" type="checkbox"> Buzzer sound</label></div>
+<div class="cards">
+<div class="card"><b id="st">Waiting</b><span>Warning stage</span><div class="bar"><i id="mt"></i></div></div>
+<div class="card"><b id="ds">–</b><span>Car distance to crossing (simulated)</span></div>
+<div class="card"><b id="fl">–</b><span>Flash rate</span></div>
+<div class="card"><b id="vl">–</b><span>Villagers</span></div>
+<div class="card"><b id="ev">0</b><span>Events saved to hotspot map</span><small id="le"></small></div></div>
+</main>
+<script>
+const $=i=>document.getElementById(i),c=$('c'),g=c.getContext('2d'),W=960,H=540,JX=330,Y0=300,Y1=420,STOP=262,CY=385;
+let T=0,carX=0,carOn=false,passed=false,people=[],events=0,wait=0,doneT=0,ac=null,bz=0;
+const sx=y=>150+(y+10)*.5714,cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+let s=7;const rnd=()=>(s=s*16807%2147483647)/2147483647,trees=[];
+for(let i=0;i<46;i++){const t=rnd()<.6;trees.push([rnd()*W,t?20+rnd()*210:450+rnd()*85,16+rnd()*22])}
+const HL=[0,1,2,3,4].map(k=>({x:JX+110+k*95,y:Y0-14,thr:170+k*130}));
+const SL=[0,1,2,3,4].map(j=>{const t=.1+j*.2;return{x:150+180*t+45,y:-10+315*t-26+14,thr:650-j*120}});
+function spawn(){doneT=0;people=[[-20,'a',0],[-70,'a',-14],[-120,'a',12],[-8,'k',6],[-45,'k',-8],[-95,'k',16],[-60,'g',-18],[-150,'g',4]].map(([y,t,o],i)=>({y,x:sx(y)+o,t,v:t=='k'?70:t=='g'?48:36,rt:t=='k'?.8:.5,n:0,rc:0,mode:'walk',done:false,s:i,col:['#d6336c','#f59f00','#2f9e44','#4dabf7','#ff922b','#9775fa'][i%6]}))}
+function launch(){carX=1040;carOn=true;passed=false}
+const lvl=()=>carOn&&carX-JX>-40?cl((720-(carX-JX))/680,0,1):0;
+const ramp=(thr)=>{const d=carX-JX;return carOn&&d>-40?cl((thr-d)/160,0,1):0};
+function beep(){if(!ac)return;const o=ac.createOscillator(),v=ac.createGain();o.frequency.value=880;v.gain.value=.05;o.connect(v);v.connect(ac.destination);o.start();o.stop(ac.currentTime+.08)}
+function step(dt){T+=dt;
+ if(carOn){carX-=+$('sp').value*dt;if(carX<JX-30&&!passed){passed=true;events++;$('le').textContent='Last: '+new Date().toLocaleTimeString()}if(carX<-140){carOn=false;wait=0}}
+ else{wait+=dt;if(wait>2.5&&people.some(p=>p.y>40&&p.y<STOP))launch()}
+ const L=lvl(),warn=L>.12;
+ people.forEach(p=>{if(p.done)return;
+  if(p.y<Y0-14){if(warn){p.n+=dt;p.rc=0;if(p.mode=='walk'&&p.n>p.rt)p.mode='stop'}else{p.n=0;if(p.mode=='stop'){p.rc+=dt;if(p.rc>.8)p.mode='walk'}}}
+  if(p.mode=='walk'){if(p.y<Y0-14){p.y+=p.v*.868*dt;p.x+=p.v*.496*dt}else p.y+=p.v*dt;if(p.y>480)p.done=true}});
+ if(people.every(p=>p.done)){doneT+=dt;if(doneT>2)spawn()}
+ bz+=dt;if($('snd').checked&&L>.7&&bz>1/(.7+4*L)){bz=0;beep()}
+ const st=!carOn||L<.05?'Waiting: lights dim':L<.35?'Car far: amber, slow flash':L<.7?'Car closer: brighter, faster':'Car very close: red, fastest + buzzer';
+ $('st').textContent=st;$('mt').style.width=L*100+'%';$('ds').textContent=carOn&&carX>JX-40?Math.max(0,Math.round((carX-JX)*.3))+' m':'–';
+ $('fl').textContent=L>.05?(.7+4*L).toFixed(1)+' flashes/s':'–';
+ const live=people.filter(p=>!p.done&&p.t!='g');$('vl').textContent=live.length?live.filter(p=>p.mode=='stop').length+' waiting, '+live.filter(p=>p.mode=='walk').length+' walking':'crossed safely';
+ $('ev').textContent=events}
+const rr=(x,y,w,h,r)=>{g.beginPath();(g.roundRect||g.rect).call(g,x,y,w,h,r);g.fill()},ci=(x,y,r)=>{g.beginPath();g.arc(x,y,r,0,7);g.fill()};
+function lamp(p,I,L){I=Math.max(I,.07);const f=.5+.5*Math.sin(T*6.283*(.7+4*L)),a=I*(1-(.15+.75*L)*(1-f)),h=48-48*L,x=p.x,y=p.y-12,r=10+50*a;
+ g.fillStyle='#8b93a1';g.fillRect(x-1.5,y,3,14);g.fillStyle='#2b4a8a';g.fillRect(x-10,y-5,10,6);
+ const q=g.createRadialGradient(x,y,2,x,y,r);q.addColorStop(0,`hsla(${h},100%,65%,${.95*a})`);q.addColorStop(1,`hsla(${h},100%,50%,0)`);g.fillStyle=q;ci(x,y,r);
+ g.fillStyle=`hsl(${h},100%,${30+40*a}%)`;ci(x,y,4.5)}
+function person(p){if(p.y<-15||p.done)return;const k=p.t=='k',wk=p.mode=='walk',x=p.x,y=p.y+Math.sin(T*(wk?k?14:8:2)+p.s)*(k?2.2:1.2);
+ g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(x,p.y+10,8,3,0,0,7);g.fill();
+ if(p.t=='g'){g.fillStyle=p.s==6?'#6b4f3a':'#f1efe6';g.beginPath();g.ellipse(x,y+4,10,6,0,0,7);g.fill();ci(x+8,y,3.5);g.fillStyle='#222';g.fillRect(x-6,y+8,2,4);g.fillRect(x+4,y+8,2,4)}
+ else{const bw=k?9:12,bh=k?12:18;g.fillStyle=p.col;rr(x-bw/2,y-bh+8,bw,bh,4);g.fillStyle='#e7b98a';ci(x,y-bh+4,k?4:5);g.fillStyle='#2b1d12';g.beginPath();g.arc(x,y-bh+2.5,k?4:5,Math.PI,0);g.fill()}
+ if(!wk&&p.y<Y0-14&&p.t!='g'){g.fillStyle='#ffd43b';ci(x,y-30,8);g.fillStyle='#222';g.font='bold 12px sans-serif';g.textAlign='center';g.fillText('!',x,y-26)}}
+function car(){if(!carOn)return;const x=carX,y=CY,q=g.createLinearGradient(x-48,0,x-330,0);q.addColorStop(0,'rgba(255,244,190,.55)');q.addColorStop(1,'rgba(255,244,190,0)');
+ g.fillStyle=q;g.beginPath();g.moveTo(x-46,y-12);g.lineTo(x-330,y-70);g.lineTo(x-330,y+70);g.lineTo(x-46,y+12);g.fill();
+ g.fillStyle='rgba(0,0,0,.4)';rr(x-44,y-14,96,44,12);g.fillStyle='#3b5b8c';rr(x-48,y-22,96,44,12);g.fillStyle='#16233a';rr(x-16,y-17,38,34,6);
+ g.fillStyle='#fff7c2';ci(x-47,y-13,4);ci(x-47,y+13,4);g.fillStyle='#e03131';ci(x+47,y-13,3);ci(x+47,y+13,3)}
+function signal(L){const w=carOn&&L>.12,x=236,y=226;g.fillStyle='#1b1f27';rr(x-30,y-12,60,56,8);
+ if(w){const q=g.createRadialGradient(x,y+6,2,x,y+6,40);q.addColorStop(0,'rgba(255,40,40,.7)');q.addColorStop(1,'rgba(255,40,40,0)');g.fillStyle=q;ci(x,y+6,40)}
+ g.fillStyle=w?'#ff2b2b':'#3b4252';ci(x,y+8,10);g.fillStyle='#fff';g.font='bold 10px sans-serif';g.textAlign='center';g.fillText(w?'VEHICLE COMING':'LOOK BOTH WAYS',x,y+36)}
+function draw(){const L=lvl();g.fillStyle='#0f2418';g.fillRect(0,0,W,H);
+ trees.forEach(([x,y,r])=>{g.fillStyle='#0b1c13';ci(x,y,r);g.fillStyle='#10301f';ci(x-r*.2,y-r*.25,r*.6)});
+ g.fillStyle='#ffd27a';[[560,60],[610,70],[800,470],[860,480]].forEach(([x,y])=>g.fillRect(x,y,3,3));
+ g.strokeStyle='#3b362f';g.lineWidth=84;g.beginPath();g.moveTo(150,-10);g.lineTo(JX+10,Y0+8);g.stroke();
+ g.fillStyle='#262a31';g.fillRect(0,Y0,W,Y1-Y0);g.strokeStyle='#e8e8e8';g.lineWidth=3;
+ [Y0+5,Y1-5].forEach(y=>{g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke()});
+ g.setLineDash([24,18]);g.beginPath();g.moveTo(0,360);g.lineTo(W,360);g.stroke();g.setLineDash([]);
+ g.fillStyle='#16351f';for(let i=0;i<11;i++)ci(380+i*52,Y0-4,9);
+ HL.forEach(p=>lamp(p,ramp(p.thr),L));SL.forEach(p=>lamp(p,ramp(p.thr),L));signal(L);
+ people.slice().sort((a,b)=>a.y-b.y).forEach(person);car()}
+let last=performance.now();(function loop(n){const dt=Math.min(.05,(n-last)/1000);last=n;step(dt);draw();requestAnimationFrame(loop)})(last);
+$('bCar').onclick=launch;$('bRe').onclick=()=>{spawn();carOn=false;wait=0};
+$('snd').onchange=e=>{if(e.target.checked&&!ac)try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(x){}};
+spawn();
+</script></body></html>
