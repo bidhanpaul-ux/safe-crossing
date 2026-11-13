@@ -20,8 +20,8 @@ On the highway between Islampur and Siliguri, many stretches are dark and empty 
 | `circuit/` | Tinkercad circuit design | Design only, not built |
 
 ## Live demo
-- Highway: file:///C:/Users/Bidhan%20Chandra%20Paul/Downloads/Safe%20Crossing_%20night%20simulation.html
-- Hill bend: file:///C:/Users/Bidhan%20Chandra%20Paul/Downloads/Safe%20Crossing_%20mountain%20bend%20simulation.html
+- Highway: https://bidhanpaul-ux.github.io/safe-crossing/safe-crossing-simulation.html
+- Hill bend: https://bidhanpaul-ux.github.io/safe-crossing/safe-crossing-mountain.html
 
 ## Honest status
 - The simulations show how the system would behave. They are not tests of real sensors.
